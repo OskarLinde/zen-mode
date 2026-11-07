@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en" data-zen-demo="authored" data-zen="on" data-zen-mode="on" data-zen-theme="plain">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Authored sample · Zen Mode</title>
+  <script src="demo-health.js"></script>
+  <link rel="stylesheet" href="sample.css">
+  <link rel="stylesheet" href="../extension/zen.css">
+  <script src="../extension/transition.js"></script>
+  <script src="../extension/content.js"></script>
+  <script src="../extension/bridge.mjs" type="module"></script>
+  <script src="sample.js" defer></script>
+  <script src="fake-achievements.mjs" type="module"></script>
+</head>
+<body>
+  <header class="sample-header"><a href="../index.html" target="_top">Zen Mode / samples</a><span>AUTHORED DEMO</span></header>
+  <div id="container"><div class="whitebox2"><div id="content">
+    <div class="play-header-table"><div id="health"><span id="health-counter">9 / 10</span></div><div id="playTitle">Loading sample…</div><div id="titleDescription">Black to capture.</div></div>
+    <div id="xpDisplayDiv"><span id="status" role="status">Ready to play</span><span id="status2">Local only</span></div>
+    <div id="theComment"></div>
+    <div id="target"></div>
+    <div id="errorMessageOuter"><p id="errorMessage" role="alert"></p></div>
+    <details class="sample-details"><summary>Sample notes & keyboard input</summary><p id="sample-note"></p><p>Test-only achievement popups · no award or progress change:</p><p><button type="button" data-fake-achievement="short">Short popup</button> <button type="button" data-fake-achievement="long">Long popup</button> <button type="button" data-fake-achievement="repeated">3 popups</button></p>
+      <form id="move-form"><label>Play coordinate <input name="coordinate" placeholder="B17" autocomplete="off"></label><button>Play move</button></form><p>This scripted fixture is not a complete Go engine. The extension never checks moves on the real site.</p><button id="browser-back">Browser Back</button> <button id="browser-forward">Browser Forward</button><p><a id="recover" href="puzzle.html?p=0">Return to first sample</a></p></details>
+  </div></div></div>
+</body>
+</html>

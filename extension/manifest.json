@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Zen Mode",
+  "short_name": "Zen Mode",
+  "version": "0.1.76",
+  "permissions": [
+    "storage"
+  ],
+  "description": "A steadier, responsive solving view for tsumego.com. Preserves native navigation and solving.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://tsumego.com/*"
+      ],
+      "css": [
+        "zen.css"
+      ],
+      "js": [
+        "transition.js",
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "bridge.mjs",
+        "geometry.mjs",
+        "site-ui.mjs",
+        "tatami.png"
+      ],
+      "matches": [
+        "https://tsumego.com/*"
+      ]
+    }
+  ]
+}

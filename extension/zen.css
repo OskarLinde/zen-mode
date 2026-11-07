@@ -1,0 +1,921 @@
+/* Progressive enhancement only. The browser still performs real navigations. */
+.zen-startup-error { margin: 12px; padding: 12px; color: #24372e; background: #f4f5ef; font: 14px/1.5 system-ui, sans-serif; }
+.zen-mode-handoff { position: fixed; z-index: 110; overflow: hidden; pointer-events: none; background: var(--zen-surround); }
+.zen-handoff-surface { position: absolute; overflow: hidden; border-radius: var(--zen-rim); }
+.zen-handoff-texture, .zen-handoff-surface > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* The rim sits on the wood and below the grid, as on the live board. */
+.zen-handoff-texture { z-index: 1; }
+.zen-handoff-surface > svg { z-index: 3; }
+.zen-handoff-surface::after {
+  content: ''; position: absolute; inset: 0; z-index: 2;
+  background-image: var(--zen-rim-image); background-position: var(--zen-rim-position);
+  background-size: var(--zen-rim-size); background-repeat: no-repeat;
+}
+html[data-zen="on"]:is([data-zen-handoff], [data-zen-departing]) #target .besogo-board,
+html[data-zen="on"]:is([data-zen-handoff], [data-zen-departing]) #target::after { view-transition-name: none; }
+html[data-zen-handoff] #target .besogo-board { pointer-events: none; }
+html[data-zen-handoff] #target .besogo-board > svg { opacity: 0 !important; }
+/* A reload's carried copy of the bar covers it while the live bar fills in unseen.
+   It replaces the empty bar placeholder, which would otherwise paint over it. */
+html[data-zen-bar-copy] .zen-toolbar:not(.zen-bar-copy) { visibility: hidden !important; }
+html[data-zen-bar-copy]::after { display: none !important; }
+::view-transition-group(*) { animation-duration: 120ms; }
+::view-transition-group(zen-solving) { animation: none; }
+/* Hold a static outgoing snapshot only across the document/compositor gap.
+   JavaScript releases it after the incoming cover has decoded and painted;
+   this animation is also a hard upper bound if that callback cannot run. */
+@keyframes zen-cover-swap { from, to { opacity: 1; } }
+html[data-zen-handoff]::view-transition-group(*) { animation: none; }
+html[data-zen-handoff]::view-transition-old(*) { animation: zen-cover-swap 1500ms linear both; mix-blend-mode: normal; }
+html[data-zen-handoff]::view-transition-new(*) { animation: none; opacity: 0; mix-blend-mode: normal; }
+@media (prefers-reduced-motion: reduce) {
+  /* Static coverage is useful here too; it introduces no visual movement. */
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none; }
+}
+/* A touch tap synthesizes mouseover before following a problem link. The site's
+   hover preview then flashes over the next row of collection tiles. Keep those
+   thumbnails for hover-capable devices or the user's explicit Preview mode. */
+@media (hover: none) {
+  a[data-sgf-preview] .tooltip-box svg { display: none !important; }
+  .preview-zoomed a[data-sgf-preview] .tooltip-box svg { display: block !important; }
+}
+html[data-zen="on"] {
+  --zen-ink: #24372e;
+  --zen-paper: #f4f5ef;
+  --zen-line: #d4dcd3;
+  --zen-toolbar-height: 140px;
+  --zen-controls-space: 205px;
+  --zen-mode-size: min(calc(100vw - 32px), max(300px, calc(100vh - 450px)), 580px);
+  background: var(--zen-paper);
+  color: var(--zen-ink);
+  color-scheme: light;
+}
+html[data-zen="on"] body {
+  margin: 0;
+  background: var(--zen-paper);
+  font: 16px/1.5 system-ui, sans-serif;
+}
+html[data-zen="on"] :is(#container, .whitebox2, #content) {
+  box-sizing: border-box;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 1100px;
+  margin-inline: auto !important;
+}
+html[data-zen="on"] .whitebox2 {
+  padding: 16px;
+  border: 0;
+  border-radius: 0;
+  background: var(--zen-paper);
+}
+html[data-zen="on"] :is(.play-header-table, .play-header) { min-height: 76px; }
+html[data-zen="on"] .play-header-table > tbody > tr > td { width: 15% !important; }
+html[data-zen="on"] .play-header-table > tbody > tr > td:nth-child(2) { width: 70% !important; }
+html[data-zen="on"] :is(#playTitle, #titleDescription) { font: inherit; }
+html[data-zen="on"] #playTitle { font-size: 1.15rem; font-weight: 650; }
+html[data-zen="on"] :is(#playTitle a, #titleDescription) { color: var(--zen-ink); }
+html[data-zen="on"] :is(#xpDisplayDiv, #theComment) { min-height: 24px; }
+html[data-zen="on"] #theComment { min-height: 48px; }
+html[data-zen="on"] #xpDisplayDiv table { width: 100%; }
+html[data-zen="on"] #status h2 { margin: 0; font: 600 18px/24px system-ui, sans-serif; }
+html[data-zen="on"] #target {
+  width: 100% !important;
+  height: auto !important;
+  /* Reserve the play/orientation controls before the engine creates them. */
+  min-height: calc(var(--zen-mode-size) + var(--zen-controls-space));
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto !important;
+  color: var(--zen-ink);
+}
+/* Reserve the same slot before the module and asynchronously rendered board. */
+html[data-zen="on"] #target:not(.zen-toolbar + #target) {
+  min-height: calc(var(--zen-mode-size) + var(--zen-controls-space) + var(--zen-toolbar-height) + 12px);
+}
+html[data-zen="on"] #target:not(.zen-toolbar + #target)::before { content: ''; flex: 0 0 var(--zen-toolbar-height); }
+html[data-zen="on"] #target:not(:has(.besogo-board))::after {
+  view-transition-name: zen-solving;
+  content: 'Waiting for the site board…';
+  display: grid;
+  place-content: center;
+  width: var(--zen-mode-size);
+  height: var(--zen-mode-size);
+  background: var(--zen-surround);
+  border-radius: 12px;
+}
+html[data-zen="on"] #target .besogo-board {
+  view-transition-name: zen-solving;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  position: relative;
+  width: var(--zen-mode-size) !important;
+  height: var(--zen-mode-size) !important;
+  margin: 0 !important;
+  overflow: auto;
+  border: 0;
+  display: flex;
+  overscroll-behavior: contain;
+}
+html[data-zen="on"][data-zen-preparing="on"] #target .besogo-board > svg {
+  visibility: hidden;
+  /* SVG children may explicitly set visibility=visible. Root opacity also
+     covers those children while preserving their measurable layout. */
+  opacity: 0 !important;
+  pointer-events: none;
+}
+html[data-zen="on"][data-zen-preparing="on"] #target .besogo-board::before {
+  content: 'Preparing board…';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  background: var(--zen-surround);
+  border-radius: inherit;
+}
+html[data-zen="on"] #target .besogo-board > svg {
+  display: block;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: calc(var(--zen-svg-width, 100%) * var(--zen-zoom, 1)) !important;
+  height: calc(var(--zen-svg-height, 100%) * var(--zen-zoom, 1)) !important;
+  margin: var(--zen-svg-margin, 0);
+  border: 0;
+  max-width: none;
+}
+/* Define these on the drawing plane, so custom properties resolve against its
+   measured grid, not the root's defaults. A unit is one real intersection. */
+html[data-zen="on"] :is(#target, .besogo-board, .zen-mode-handoff),
+html[data-zen="on"] :is(.besogo-board, .zen-mode-handoff)::before {
+  --zen-surround: linear-gradient(0deg, #69795a12 0 25%, #f5f2df26 25% 50%, transparent 50%)
+      var(--zen-grid-x, 0px) var(--zen-grid-y, 0px) / 100% calc(var(--zen-grid-step, 40px) * .1) repeat,
+    linear-gradient(90deg, transparent 0 46.875%, #69795a0b 46.875% 50%, transparent 50% 96.875%, #f5f2df22 96.875%)
+      var(--zen-grid-x, 0px) var(--zen-grid-y, 0px) / calc(var(--zen-grid-step, 40px) * .8) 100% repeat #d1d5bf;
+}
+html[data-zen="on"][data-zen-surround="auto"][data-zen-theme="site"] :is(#target, .besogo-board, .zen-mode-handoff),
+html[data-zen="on"][data-zen-surround="natural"] :is(#target, .besogo-board, .zen-mode-handoff),
+html[data-zen="on"][data-zen-surround="auto"][data-zen-theme="site"] :is(.besogo-board, .zen-mode-handoff)::before,
+html[data-zen="on"][data-zen-surround="natural"] :is(.besogo-board, .zen-mode-handoff)::before {
+  /* Fine weave stays fixed in board space. Repeat in both directions so
+     wide views do not expose flat bands beyond the original image tile.
+     Physical scale: warp pitch 14 mm, horizontal grid interval 22 mm. The
+     seamless 1086 x 1138 px tile holds exactly 17 cords across, one every
+     63.88 px, so it spans 17 * 14 / 22 = 10.82 grid intervals wide. Height
+     keeps the image's aspect ratio, so the weave is never stretched.
+     Grid span counts lines, not intervals: span - step is the board's width. */
+  --zen-tatami-width: calc(var(--zen-grid-step, 40px) * 17 * 14 / 22);
+  --zen-tatami-height: calc(var(--zen-tatami-width) * 1138 / 1086);
+  --zen-surround: linear-gradient(#f4f5ef33, #f4f5ef33), var(--zen-tatami-image, url("tatami.png"))
+    calc(var(--zen-grid-x, 0px) + (var(--zen-grid-span, 760px) - var(--zen-grid-step, 40px) - var(--zen-tatami-width)) * .5)
+    calc(var(--zen-grid-y, 0px) + (var(--zen-grid-span, 760px) - var(--zen-grid-step, 40px) - var(--zen-tatami-height)) * .5) /
+    var(--zen-tatami-width) var(--zen-tatami-height) repeat #c7c5a6;
+}
+html[data-zen="on"][data-zen-surround="auto"][data-zen-theme="site"],
+html[data-zen="on"][data-zen-surround="natural"] {
+  --zen-heart-weight: 600;
+  --zen-heart-stroke: 2.2;
+  --zen-fraction-weight: 400;
+}
+html[data-zen="on"][data-zen-surround="solid"] :is(#target, .besogo-board, .zen-mode-handoff),
+html[data-zen="on"][data-zen-surround="solid"] :is(.besogo-board, .zen-mode-handoff)::before { --zen-surround: #d1d5cb; }
+/* Keep mat on the container from startup onward. The adapter reads wood on a
+   hidden probe, avoiding an intermediate full-screen wood fill for Safari.
+   Unsupported framing still falls back to the native surface after preparing. */
+html[data-zen="on"][data-zen-preparing="on"] #target .besogo-board,
+html[data-zen="on"] #target .besogo-board[data-zen-fit="on"] { background: var(--zen-surround) !important; background-attachment: local !important; }
+/* The site outlines the board green on a solve (inline box-shadow) and red on a mistake
+   (.besogo-board-red-glow). Our board fills the screen, so that drew a rectangle at its
+   edges. Zen mode shows the result in its bar instead; Regular mode keeps the outline.
+   The red rule is !important inside the site's cascade layer "page", which beats any
+   unlayered !important rule, so this one joins the site's first layer, "besogo": among
+   important declarations the earliest layer wins. */
+@layer besogo { html[data-zen="on"] #target .besogo-board { box-shadow: none !important; } }
+/* One light for the whole board. Its azimuth is set by the native stones, the
+   most prominent lit objects: their highlight sits at the top, slightly right.
+   x and y point toward it, with y negative upward. z is its height: raise it for
+   a gentler direction term, lower it for a stronger one. The mat is mostly
+   horizontal structure, so its own shading does not need to match closely. */
+html[data-zen="on"] { --zen-light-x: .27; --zen-light-y: -.67; --zen-light-z: 1.3; }
+/* A 1 mm fillet on a 22 mm grid: rounded in plan by border-radius, and rolled
+   over along each edge. On a quarter-round, s runs from 0 at the flat top to 1
+   at the outer edge, with normal (s * n, sqrt(1 - s^2)). Lambert shading against
+   the flat top is s * (n . l) / lz - (1 - sqrt(1 - s^2)). The first term is a
+   linear ramp that depends on the edge's direction. The second is a rolloff that
+   every edge shares, so sides nearly perpendicular to the light still read as
+   rounded. Edges are separate profiles in x or y, so they sum through a corner
+   with no mitre. Every layer is exactly the painted box, so each profile starts
+   at the painted edge and box snapping cannot shift it or make a corner join.
+   The dark tint is near black so it darkens in proportion on any wood.
+   --zen-true-* turn off an edge that is an interior crop, not a board edge. */
+html[data-zen="on"] #target .besogo-board[data-zen-fit="on"],
+.zen-handoff-surface, .zen-edge-board { --zen-rim: max(calc(var(--zen-grid-step, 40px) / 22), 1.5px); }
+html[data-zen="on"] #target .besogo-board[data-zen-fit="on"] > svg,
+.zen-handoff-surface, .zen-edge-board {
+  --zen-lit: 255 227 186; --zen-dark: 24 14 6;
+  --zen-face-left: calc(var(--zen-light-x) / var(--zen-light-z) * -1);
+  --zen-face-right: calc(var(--zen-light-x) / var(--zen-light-z));
+  --zen-face-top: calc(var(--zen-light-y) / var(--zen-light-z) * -1);
+  --zen-face-bottom: calc(var(--zen-light-y) / var(--zen-light-z));
+  /* Stops are 1 - sqrt(1 - s^2) at s = 1, .97, .92, .8, .6 and .35. */
+  --zen-rim-roll: rgb(var(--zen-dark) / .32), rgb(var(--zen-dark) / .24) calc(var(--zen-rim) * .03),
+    rgb(var(--zen-dark) / .19) calc(var(--zen-rim) * .08), rgb(var(--zen-dark) / .13) calc(var(--zen-rim) * .2),
+    rgb(var(--zen-dark) / .06) calc(var(--zen-rim) * .4), rgb(var(--zen-dark) / .02) calc(var(--zen-rim) * .65), transparent var(--zen-rim);
+  --zen-rim-image:
+    linear-gradient(90deg, var(--zen-rim-roll)), linear-gradient(270deg, var(--zen-rim-roll)),
+    linear-gradient(180deg, var(--zen-rim-roll)), linear-gradient(0deg, var(--zen-rim-roll)),
+    linear-gradient(90deg, rgb(var(--zen-lit) / calc(.28 * max(0, var(--zen-face-left)))), transparent var(--zen-rim)),
+    linear-gradient(270deg, rgb(var(--zen-lit) / calc(.28 * max(0, var(--zen-face-right)))), transparent var(--zen-rim)),
+    linear-gradient(180deg, rgb(var(--zen-lit) / calc(.28 * max(0, var(--zen-face-top)))), transparent var(--zen-rim)),
+    linear-gradient(0deg, rgb(var(--zen-lit) / calc(.28 * max(0, var(--zen-face-bottom)))), transparent var(--zen-rim)),
+    linear-gradient(90deg, rgb(var(--zen-dark) / calc(.32 * max(0, -1 * var(--zen-face-left)))), transparent var(--zen-rim)),
+    linear-gradient(270deg, rgb(var(--zen-dark) / calc(.32 * max(0, -1 * var(--zen-face-right)))), transparent var(--zen-rim)),
+    linear-gradient(180deg, rgb(var(--zen-dark) / calc(.32 * max(0, -1 * var(--zen-face-top)))), transparent var(--zen-rim)),
+    linear-gradient(0deg, rgb(var(--zen-dark) / calc(.32 * max(0, -1 * var(--zen-face-bottom)))), transparent var(--zen-rim));
+  --zen-rim-edges: 0 0, 0 0, 0 0, 0 0;
+  --zen-rim-widths: calc(100% * var(--zen-true-left, 1)) 100%, calc(100% * var(--zen-true-right, 1)) 100%,
+    100% calc(100% * var(--zen-true-top, 1)), 100% calc(100% * var(--zen-true-bottom, 1));
+  --zen-rim-position: var(--zen-rim-edges), var(--zen-rim-edges), var(--zen-rim-edges);
+  --zen-rim-size: var(--zen-rim-widths), var(--zen-rim-widths), var(--zen-rim-widths);
+}
+/* Only corners that are real board corners round off. */
+html[data-zen="on"] #target .besogo-board[data-zen-fit="on"] > svg,
+html[data-zen="on"]:not([data-zen-preparing="on"]) #target .besogo-board[data-zen-fit="on"]::after {
+  border-radius: calc(var(--zen-rim) * var(--zen-corner-tl, 0)) calc(var(--zen-rim) * var(--zen-corner-tr, 0))
+    calc(var(--zen-rim) * var(--zen-corner-br, 0)) calc(var(--zen-rim) * var(--zen-corner-bl, 0));
+}
+html[data-zen="on"] #target .besogo-board[data-zen-fit="on"] > svg {
+  background: var(--zen-rim-image), var(--zen-surface) !important;
+}
+html[data-zen="on"] #target .besogo-board[data-zen-fit="on"] > svg {
+  /* Sample 4 image px in from each edge of the site's 1000 px textures. Some
+     carry a lit outer line, and an exact fit lets box snapping expose the light
+     fallback colour for one device pixel on fractional boards. */
+  background-position: var(--zen-rim-position), calc(var(--zen-wood-x) - var(--zen-wood-width) * .004) calc(var(--zen-wood-y) - var(--zen-wood-height) * .004) !important;
+  background-size: var(--zen-rim-size), calc(var(--zen-wood-width) * 1.008) calc(var(--zen-wood-height) * 1.008) !important;
+  background-repeat: no-repeat !important;
+}
+.zen-handoff-surface, .zen-handoff-texture {
+  background-position: calc(var(--zen-wood-x) - var(--zen-wood-width) * .004) calc(var(--zen-wood-y) - var(--zen-wood-height) * .004) !important;
+  background-size: calc(var(--zen-wood-width) * 1.008) calc(var(--zen-wood-height) * 1.008) !important;
+  background-repeat: no-repeat !important;
+}
+/* Board on the mat, in one rule so live and transition covers cannot differ.
+   First layer: ambient occlusion, tight and on all sides. Second: cast shadow,
+   pushed away from the light and pulled in by its negative spread, so its blur
+   stays off the lit sides. Only true edges survive the rim clip. */
+html[data-zen="on"]:not([data-zen-preparing="on"]) #target .besogo-board[data-zen-fit="on"]::after,
+.zen-handoff-surface, .zen-edge-board {
+  box-shadow: 0 0 calc(var(--zen-grid-step, 40px) * .16) calc(var(--zen-grid-step, 40px) * .01) #1b170d36,
+    calc(var(--zen-light-x) * var(--zen-grid-step, 40px) * -.33) calc(var(--zen-light-y) * var(--zen-grid-step, 40px) * -.33) calc(var(--zen-grid-step, 40px) * .34) calc(var(--zen-grid-step, 40px) * -.1) #1b170d96;
+}
+/* SVG viewport clipping hides its own outer shadow. Expose this frame only
+   past actual board edges, never at an interior viewBox boundary. */
+html[data-zen="on"]:not([data-zen-preparing="on"]) #target .besogo-board[data-zen-fit="on"]::after {
+  content: ''; position: absolute; z-index: 1; pointer-events: none;
+  left: var(--zen-edge-x); top: var(--zen-edge-y);
+  width: var(--zen-edge-width); height: var(--zen-edge-height);
+  clip-path: inset(var(--zen-rim-clip, 0px));
+}
+html[data-zen="on"][data-zen-theme="plain"] .besogo-board,
+html[data-zen="on"][data-zen-theme="plain"] .besogo-board > svg,
+html[data-zen="on"][data-zen-theme="plain"] .zen-edge-board { background: #e6c38b !important; background-image: none !important; }
+html[data-zen="on"] .zen-theme { display: flex; align-items: center; gap: 10px; font: 12px system-ui; margin: 4px 0 8px; }
+html[data-zen="on"] .zen-bar-tint input { flex: 1; min-width: 0; min-height: 32px; accent-color: #285a43; }
+html[data-zen="on"] .zen-bar-tint-value { min-width: 4ch; text-align: right; font: 600 13px system-ui; font-variant-numeric: tabular-nums; color: var(--zen-ink); }
+html[data-zen="on"] .zen-solved { flex: 0 0 auto; color: #526255; font-weight: 500; }
+html[data-zen="on"] .zen-solved::after { content: '✓'; }
+html[data-zen="on"] :is(.zen-solved, .zen-history)[hidden] { display: none; }
+html[data-zen="on"] .zen-history { display: block; margin: 8px 0; font: 12px/1.4 system-ui; color: #526255; }
+/* Native palettes must not leak pale text onto the light Zen mode feedback UI.
+   Only these mirrored text channels change; native content and graphics do not. */
+html[data-zen="on"][data-zen-mode="on"] :is(.zen-live-status, .zen-feedback, .zen-feedback-dialog),
+html[data-zen="on"][data-zen-mode="on"] :is(.zen-live-status, .zen-feedback, .zen-feedback-dialog) * {
+  color: #171c19;
+}
+html[data-zen="on"] .zen-live-status:is([data-turn="black"], [data-turn="white"])::before {
+  content: ''; display: inline-block; width: .8em; height: .8em; margin-right: .4em;
+  box-sizing: border-box; border: 1px solid #29352f; border-radius: 50%; background: #29352f;
+  vertical-align: -.02em;
+}
+html[data-zen="on"] .zen-live-status[data-turn="white"]::before { background: #fff; }
+html[data-zen="on"] .zen-option-help { margin: -4px 0 10px; min-height: 0; font: 12px/1.4 system-ui; color: var(--zen-ink); opacity: .75; }
+html[data-zen="on"] .zen-theme select { min-height: 44px; font: 14px system-ui; color: var(--zen-ink); background: white; border: 1px solid var(--zen-line); border-radius: 8px; padding: 8px; }
+html[data-zen="on"] :is(.besogo-bottom-panels, .besogo-panels) {
+  width: 100% !important;
+  max-width: 580px;
+  height: auto !important;
+  margin: 0 !important;
+}
+/* The solving page hides this unused editor panel in a late inline stylesheet.
+   Apply the same rule before it can occupy a row and move the play controls. */
+html[data-zen="on"] #target > .besogo-panels { display: none; }
+html[data-zen="on"] .besogo-tsumegoPlayTool {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(48px, auto);
+  gap: 8px;
+  width: 100% !important;
+  height: auto !important;
+  align-items: center;
+}
+html[data-zen="on"] .besogo-tsumegoPlayTool > br { display: none; }
+html[data-zen="on"] [id^="besogo-back-button"] { grid-area: 1 / 1; }
+html[data-zen="on"] [id^="besogo-reset-button"] { grid-area: 1 / 2; }
+html[data-zen="on"] [id^="besogo-review-button"] { grid-area: 1 / 3; }
+html[data-zen="on"] [id^="besogo-next-button"] { grid-area: 1 / 4; }
+html[data-zen="on"] :is(.zen-toolbar button, .besogo-tsumegoPlayTool input[type="button"], .besogo-tsumegoPlayTool a, .besogo-tsumegoPlayTool button) {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 44px;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 8px 10px;
+  font: 600 14px/1.2 system-ui, sans-serif;
+  color: var(--zen-ink);
+  background: #fff;
+  border: 1px solid var(--zen-line);
+  border-radius: 8px;
+  text-decoration: none;
+  cursor: pointer;
+}
+html[data-zen="on"] .besogo-tsumegoPlayTool img {
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  padding: 8px;
+}
+html[data-zen="on"] :is(#besogo-next-button, .zen-toolbar button[aria-pressed="true"]) {
+  color: #fff;
+  background: #285a43;
+  border-color: #285a43;
+}
+html[data-zen="on"] :is(button:disabled, [id$="-inactive"]) { opacity: .5; cursor: default; }
+html[data-zen="on"] :focus-visible { outline: 3px solid #b26422; outline-offset: 3px; }
+html[data-zen="on"] .zen-toolbar { box-sizing: border-box; width: 100%; max-width: 580px; min-height: var(--zen-toolbar-height); text-align: left; margin: 0 auto 12px; }
+html[data-zen="on"] .zen-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+html[data-zen="on"] .zen-controls output { font: 12px system-ui; min-width: 36px; text-align: center; }
+html[data-zen="on"] .zen-options { margin: 0; border: 0; padding: 0; }
+html[data-zen="on"] .zen-options summary { min-height: 44px; padding: 10px; border: 1px solid var(--zen-line); border-radius: 8px; background: #fff; font: 600 14px/22px system-ui; cursor: pointer; }
+html[data-zen="on"] .zen-options[open] { width: 100%; }
+html[data-zen="on"] .zen-more { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-block: 8px; }
+html[data-zen="on"] .zen-toolbar p { font: 12px/1.5 system-ui; min-height: 36px; margin: 0; color: #526255; }
+html[data-zen="on"] .zen-context { display: none; }
+html[data-zen="on"] .zen-feedback { min-height: 0; overflow: hidden; }
+html[data-zen="on"] .zen-toolbar .zen-feedback button {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  position: relative;
+  width: 100%; min-width: 0; min-height: 0; max-height: 36px;
+  padding: 0 14px 0 0; border: 0; border-radius: 0;
+  background: transparent; color: inherit; text-align: left;
+  font: 600 13px/1.35 system-ui; white-space: pre-line; overflow: hidden;
+}
+html[data-zen="on"] .zen-feedback button::after { content: '›'; position: absolute; right: 0; top: 0; }
+html[data-zen="on"] .zen-feedback-dialog {
+  box-sizing: border-box; width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 48px);
+  padding: 20px; border: 1px solid var(--zen-line); border-radius: 12px;
+  background: var(--zen-paper); color: var(--zen-ink); overflow: auto;
+}
+html[data-zen="on"] .zen-feedback-dialog::backdrop { background: #17291e66; }
+html[data-zen="on"] .zen-feedback-dialog h2 { margin: 0 0 12px; font: 600 18px/1.4 system-ui; }
+html[data-zen="on"] .zen-feedback-dialog p { margin: 0 0 16px; white-space: pre-wrap; overflow-wrap: anywhere; font: 16px/1.5 system-ui; }
+html[data-zen="on"] .zen-toolbar .zen-nav-trigger { display: none; }
+html[data-zen="on"] .zen-hearts { display: none; }
+html[data-zen="on"] .zen-site-sheet {
+  box-sizing: border-box; width: min(580px, calc(100vw - 24px));
+  max-height: calc(100dvh - 36px); padding: 16px; overflow: auto;
+  border: 1px solid var(--zen-line); border-radius: 16px;
+  background: var(--zen-paper); color: var(--zen-ink); text-align: left;
+  overscroll-behavior: contain;
+}
+html[data-zen="on"] .zen-site-sheet::backdrop { background: #17291e66; }
+html[data-zen="on"] .zen-sheet-version { margin: 16px 0 0; padding-top: 10px; border-top: 1px solid var(--zen-line); color: var(--zen-ink); font: 600 14px/1.4 system-ui, sans-serif; text-align: center; }
+/* Contrast inside the sheets, WCAG AA. Disabled controls stay readable and show a dashed
+   edge instead of fading. The site's own grey and white text, made for its own pages, is
+   darkened on the paper; its coloured problem tiles get a wash so white numbers read. */
+html[data-zen="on"] .zen-site-sheet :is(button:disabled, [id$="-inactive"]) { opacity: 1; color: #5c6460; border-style: dashed; }
+html[data-zen="on"] .zen-site-sheet button[aria-pressed="true"]:disabled { background: #557264; color: #fff; }
+html[data-zen="on"] .zen-site-sheet :is(#author-notice, #descriptionText, #status2 font[color], #findSimilarProblems) { color: #5c605a !important; }
+html[data-zen="on"] .zen-site-sheet :is(#footer, #footer a, #footer .footer-element) { color: var(--zen-ink) !important; }
+html[data-zen="on"] .zen-site-sheet .discuss-disabled a { color: #65696c !important; }
+html[data-zen="on"] .zen-site-sheet .problem-nav__item { box-shadow: inset 0 0 0 100px #0000004d; }
+html[data-zen="on"] .zen-site-sheet > header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  position: sticky; top: -16px; z-index: 30; background: var(--zen-paper); /* Above the current tile's ring, 20. */
+  margin: -16px -16px 12px; padding: 12px 16px; border-bottom: 1px solid var(--zen-line);
+}
+html[data-zen="on"] .zen-site-sheet h2 { margin: 0; font: 600 18px/1.4 system-ui; }
+html[data-zen="on"] .zen-site-sheet p { min-height: 0; font: 14px/1.5 system-ui; overflow-wrap: anywhere; }
+html[data-zen="on"] .zen-native-ui { clear: both; min-width: 0; overflow-wrap: anywhere; }
+html[data-zen="on"] .zen-native-ui > * { max-width: 100%; box-sizing: border-box; }
+html[data-zen="on"] .zen-native-ui :is(input, select, textarea) { box-sizing: border-box; max-width: 100%; font: inherit; }
+html[data-zen="on"] .zen-native-ui :is(input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, button) { min-height: 44px; }
+/* Tiles keep their own size. The site hides several of these links by id until they
+   apply, so set no display on them: padding gives the touch target and hiding still wins. */
+html[data-zen="on"] .zen-native-ui :is(a[href]:not(.problem-nav a, .selectable-text), label.dropdown__trigger) { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
+html[data-zen="on"] .zen-native-ui a.selectable-text { padding-block: 14px; }
+html[data-zen="on"] .zen-native-ui #footer { position: static; min-height: 0; width: auto; margin: 16px 0 0; padding: 12px 0; background: transparent; }
+html[data-zen="on"] .zen-native-ui .besogo-bottom-panels { margin-bottom: 16px !important; }
+html[data-zen="on"] .zen-native-ui #author-notice { grid-column: 1 / -1; text-align: center; font: 13px/1.5 system-ui; }
+html[data-zen="on"] .zen-native-ui .besogo-blank-space { display: none !important; }
+html[data-zen="on"] .zen-native-ui .loader-container { position: static; inset: auto; }
+html[data-zen="on"] .zen-site-sheet .zen-native-ui .besogo-tsumegoPlayTool > * { display: revert !important; }
+html[data-zen="on"] .zen-site-sheet #editToggle.zen-more-shown { display: none !important; }
+html[data-zen="on"] .zen-site-sheet #editSection.zen-more-shown { display: block !important; }
+html[data-zen="on"] .zen-site-sheet #editSection.zen-more-shown > p:first-child { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 16px; margin: 0 0 8px; }
+html[data-zen="on"] .zen-site-sheet #editSection.zen-more-shown > p:first-child a { margin: 0; }
+html[data-zen="on"] .zen-site-sheet .zen-native-ui .besogo-tsumegoPlayTool > br { display: none !important; }
+html[data-zen="on"] .zen-site-sheet .zen-native-ui #errorMessageOuter:not(:has(#errorMessage:empty)) { position: static; margin-block: 12px; }
+html[data-zen="on"] .zen-site-sheet .zen-native-navigation :is(.whitebox1, .sample-header) {
+  display: block !important; position: static !important; width: 100% !important; height: auto !important;
+  min-height: 0; padding: 0; margin: 0; background: transparent; border: 0;
+}
+html[data-zen="on"] .zen-native-navigation #logo1 { position: static; transform: none; margin: 0 0 12px; padding: 0; height: 40px; width: auto; }
+html[data-zen="on"] .zen-native-navigation :is(.nav-toggle-btn, .site-nav__signin) { display: none !important; }
+html[data-zen="on"] .zen-native-navigation .site-nav {
+  display: block !important; position: static !important; width: 100% !important; max-height: none;
+  visibility: visible; opacity: 1; transform: none; padding: 0; margin: 0; overflow: visible;
+  background: transparent !important; box-shadow: none; border: 0; color: var(--zen-ink);
+}
+html[data-zen="on"] .zen-native-navigation .site-nav__account { background: transparent; border-color: var(--zen-line); }
+html[data-zen="on"] .zen-native-navigation .site-nav__account a { color: var(--zen-ink); }
+html[data-zen="on"] .zen-native-navigation #newMenu :is(nav, ul, li) {
+  display: block !important; float: none; position: static !important; width: auto;
+  height: auto; min-width: 0; max-width: 100%; margin: 0; padding: 0; list-style: none;
+  border: 0; background: transparent; visibility: visible; opacity: 1;
+}
+html[data-zen="on"] .zen-native-navigation #newMenu ul ul { padding-left: 16px; border-left: 1px solid var(--zen-line); }
+html[data-zen="on"] .zen-native-navigation #newMenu a { min-height: 44px; padding: 8px; font: 500 15px/1.4 system-ui; color: var(--zen-ink); }
+html[data-zen="on"] .zen-native-navigation :is(#soundButton, #boardsInMenu, #darkButton) { display: flex; align-items: center; gap: 10px; }
+html[data-zen="on"] .zen-native-navigation #soundButton::after { content: 'Sound'; }
+html[data-zen="on"] .zen-native-navigation #boardsInMenu::after { content: 'Board appearance'; }
+html[data-zen="on"] .zen-native-navigation #darkButton::after { content: 'Site theme'; }
+html[data-zen="on"] .zen-native-navigation .dropdown__menu { position: static !important; max-width: 100%; overflow: auto; transform: none; }
+html[data-zen="on"] .zen-native-navigation .dropdown__overlay { display: none !important; }
+html[data-zen="on"] .zen-toolbar .zen-bar-action { display: none; }
+html[data-zen="on"] .zen-review { display: none !important; } /* Also a bar action; only the site offering Review may show it. */
+html[data-zen="on"] .zen-review[aria-busy="true"] { opacity: 1; cursor: progress; }
+html[data-zen="on"] .zen-review-spinner {
+  width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; animation: zen-review-spin .7s linear infinite; will-change: transform;
+}
+@keyframes zen-review-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  html[data-zen="on"] .zen-review-spinner { animation: none; }
+}
+html[data-zen="on"] .zen-review-message {
+  position: fixed; z-index: 250; bottom: calc(var(--zen-bar, 72px) + 8px); left: 8px; right: 8px;
+  display: flex; align-items: center; gap: 12px; max-width: 580px; margin: auto;
+  padding: 10px; border: 1px solid #ac653e; border-radius: 8px; background: #fff8ec;
+  box-shadow: 0 4px 20px #0002; font: 14px/1.4 system-ui, sans-serif;
+}
+html[data-zen="on"] .zen-review-message[hidden] { display: none !important; }
+html[data-zen="on"] .zen-review-controls { display: none; align-items: center; gap: 6px; margin-top: 8px; }
+html[data-zen="on"] .zen-review-controls[hidden], html[data-zen="on"] .zen-review-tree[hidden] { display: none !important; }
+html[data-zen="on"] .zen-review-controls button { flex: 1 1 44px; width: 44px; padding: 0; font-size: 21px; }
+html[data-zen="on"] .zen-current-tree-node {
+  fill: #f6d875; stroke: #244b37; stroke-width: 2px; vector-effect: non-scaling-stroke;
+}
+html[data-zen="on"][data-zen-in-review] #nextMoveGroup circle:not([r="0"]) {
+  r: var(--zen-review-dot, 8px); stroke: #fff; stroke-width: 1.2px;
+  vector-effect: non-scaling-stroke; paint-order: stroke fill;
+}
+html[data-zen="on"][data-zen-in-review] [data-zen-reply] { --zen-reply-color: #29352f; }
+html[data-zen="on"][data-zen-in-review] [data-zen-reply="black"] { --zen-reply-color: #000; }
+html[data-zen="on"][data-zen-in-review] [data-zen-reply="white"] { --zen-reply-color: #fff; }
+html[data-zen="on"][data-zen-in-review] #nextMoveGroup circle[data-zen-reply] { fill: var(--zen-reply-color); }
+html[data-zen="on"][data-zen-in-review] #nextMoveGroup circle[data-zen-reply="white"] { stroke: #59605a; stroke-width: .8px; }
+html[data-zen="on"][data-zen-in-review] .zen-opponent-node > :is(circle[fill="none"], circle[data-review-ring]) { stroke: var(--zen-reply-color); }
+html[data-zen="on"][data-zen-in-review] .zen-opponent-node[data-zen-reply="white"] > :is(circle[fill="none"], circle[data-review-ring]) { filter: drop-shadow(0 0 1px #29352f); }
+html[data-zen="on"] .zen-review-legend {
+  display: flex; gap: 7px; align-items: center; height: 24px; padding-inline: 6px;
+  font: 11px/1 system-ui, sans-serif; white-space: nowrap;
+}
+@media (max-width: 360px) {
+  html[data-zen="on"] .zen-review-legend { gap: 4px; padding-inline: 4px; font-size: 10px; letter-spacing: -.2px; }
+}
+html[data-zen="on"] #errorMessageOuter { overflow-wrap: anywhere; }
+html[data-zen="on"] .problem-nav { max-width: 100%; overflow-x: auto; }
+html[data-zen="on"] .nav-toggle-btn { width: 44px; height: 44px; }
+html[data-zen="on"] .nav-toggle-btn span { background: #526255; }
+@media (min-width: 64rem) {
+  html[data-zen="on"] .whitebox1 { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; height: auto; min-height: 70px; padding: 8px 12px; }
+  html[data-zen="on"] #logo1 { position: static; height: 44px; width: auto; margin: 0; padding: 0; }
+  html[data-zen="on"] .site-nav { position: static; width: auto; margin: 0; flex: 1 1 600px; }
+  html[data-zen="on"] .site-nav__signin { position: static; width: auto; margin: 0 0 0 auto; flex: 0 0 auto; }
+  html[data-zen="on"] #newMenu nav > ul { display: flex; flex-wrap: wrap; align-items: center; }
+  html[data-zen="on"] #newMenu nav > ul > li { float: none; border: 0; background: transparent; }
+  html[data-zen="on"] #newMenu nav > ul > li > a { font: 600 14px/26px system-ui; padding: 9px; color: var(--zen-ink); }
+}
+@supports (height: 1svh) {
+  html[data-zen="on"] { --zen-mode-size: min(calc(100vw - 32px), max(300px, calc(100svh - 450px)), 580px); }
+}
+@media (max-width: 440px) {
+  html[data-zen="on"] .zen-controls { gap: 4px; }
+  html[data-zen="on"] .zen-controls button { padding-inline: 8px; }
+  html[data-zen="on"] .zen-controls output { min-width: 30px; }
+}
+html[data-zen="on"][data-zen-mode="on"] {
+  --zen-safe-left: max(12px, env(safe-area-inset-left, 0px));
+  --zen-safe-right: max(12px, env(safe-area-inset-right, 0px));
+  --zen-base-bar: calc(72px + env(safe-area-inset-bottom, 0px));
+  --zen-review-actions: 0px; --zen-tree-height: 0px;
+  --zen-bar: calc(var(--zen-base-bar) + var(--zen-review-actions) + var(--zen-tree-height));
+}
+html[data-zen="on"][data-zen-mode="on"][data-zen-review] { --zen-review-actions: 52px; --zen-tree-height: min(180px, 25dvh); }
+html[data-zen="on"][data-zen-mode="on"][data-zen-review-available] .zen-review {
+  display: inline-flex !important; position: absolute; right: calc(var(--zen-safe-right) + 128px); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: 54px; height: 44px; padding: 0; font-size: 12px;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-review-controls {
+  display: flex;
+  position: absolute; left: 12px; right: 12px; bottom: var(--zen-base-bar); height: 44px; margin: 0;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-review-tree {
+  position: absolute; left: 12px; right: 12px; height: var(--zen-tree-height);
+  bottom: calc(var(--zen-base-bar) + var(--zen-review-actions)); overflow: hidden;
+  border: 1px solid var(--zen-line); border-radius: 8px; background: white;
+  /* Grid, because the site's flex: none !important is in a CSS layer, and an important rule in a layer beats any unlayered one. */
+  display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+html[data-zen="on"] .zen-review-tree > .besogo-tree {
+  display: block !important; grid-row: 4; width: 100% !important; height: auto !important; min-height: 0;
+  max-width: none !important; max-height: none !important; margin: 0 !important; overflow: auto !important;
+  overscroll-behavior: contain; touch-action: pan-x pan-y;
+  /* Soft edges only where the tree continues: the white layers scroll away with it. */
+  background:
+    linear-gradient(#fff 40%, #fff0) top / 100% 22px no-repeat local,
+    linear-gradient(#fff0, #fff 60%) bottom / 100% 22px no-repeat local,
+    linear-gradient(90deg, #fff 40%, #fff0) left / 22px 100% no-repeat local,
+    linear-gradient(90deg, #fff0, #fff 60%) right / 22px 100% no-repeat local,
+    linear-gradient(#24372e24, #24372e00) top / 100% 8px no-repeat scroll,
+    linear-gradient(#24372e00, #24372e24) bottom / 100% 8px no-repeat scroll,
+    linear-gradient(90deg, #24372e24, #24372e00) left / 8px 100% no-repeat scroll,
+    linear-gradient(90deg, #24372e00, #24372e24) right / 8px 100% no-repeat scroll;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar button.zen-review-comment {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
+  position: relative; flex: none; box-sizing: border-box; width: auto; min-width: 0; min-height: 0; max-height: 66px;
+  margin: 0 6px 4px; padding: 3px 18px 3px 8px; overflow: hidden;
+  border: 0; border-left: 3px solid #b5761a; border-radius: 0; background: #fbf6ea; color: #171c19;
+  font: 500 13px/20px system-ui, sans-serif; text-align: left; white-space: pre-line; overflow-wrap: anywhere;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar button.zen-review-comment[hidden] { display: none; }
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar button.zen-review-conversation {
+  grid-row: 3; justify-self: start; width: auto; min-width: 0; min-height: 28px; margin: 0 6px 4px; padding: 2px 8px; border: 0; border-radius: 6px;
+  background: #ece9ff; color: #3d22c9; font: 600 13px/20px system-ui, sans-serif; text-align: left;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar button.zen-review-conversation[hidden] { display: none; }
+html[data-zen="on"] .zen-review-comment-more::after { content: '›'; position: absolute; right: 6px; top: 3px; font-weight: 600; }
+html[data-zen="on"] .zen-comment-mark { fill: #b5761a; stroke: #fff; stroke-width: 5; pointer-events: none; }
+/* The relocated SVG no longer inherits these native container rules. */
+html[data-zen="on"] .zen-review-tree svg {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  touch-action: pan-x pan-y;
+}
+html[data-zen="on"][data-zen-mode="on"] body { overflow: hidden; }
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar .zen-nav-trigger {
+  display: flex; position: fixed; z-index: 215;
+  top: max(12px, env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px));
+  width: 44px; height: 44px; min-height: 44px; flex-direction: column; gap: 4px;
+  padding: 12px; border: 0; border-radius: 12px; align-items: center;
+  background: transparent; -webkit-backdrop-filter: none; backdrop-filter: none;
+  box-shadow: none;
+}
+html[data-zen="on"] .zen-nav-trigger span { display: block; width: 18px; height: 2px; background: var(--zen-ink); border-radius: 2px; }
+html[data-zen="on"][data-zen-mode="on"] .zen-hearts:not([hidden]) {
+  display: flex; align-items: center; gap: 6px; position: fixed; z-index: 215;
+  top: max(12px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+  height: 44px; padding: 0 2px; pointer-events: none; user-select: none;
+  color: var(--zen-ink); background: none; font: var(--zen-heart-weight, 400) 15px/1 system-ui, sans-serif;
+  font-variant-numeric: tabular-nums; text-shadow: none;
+}
+html[data-zen="on"] .zen-hearts svg {
+  width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: var(--zen-heart-stroke, 1.6);
+  stroke-linecap: round; stroke-linejoin: round; filter: none;
+}
+html[data-zen="on"] .zen-heart-count { display: inline-flex; align-items: center; height: 22px; font-size: 13px; gap: 1px; }
+html[data-zen="on"] .zen-heart-remaining { transform: translateY(-3px); }
+html[data-zen="on"] .zen-heart-total { transform: translateY(3px); }
+html[data-zen="on"] .zen-heart-slash { font-size: 21px; font-weight: var(--zen-fraction-weight, 300); }
+html[data-zen="on"][data-zen-mode="on"] .zen-site-sheet { width: calc(100vw - 16px); max-height: calc(100dvh - var(--zen-bar) - 24px); }
+html[data-zen="on"][data-zen-mode="on"] .zen-problem-sheet { position: fixed; top: auto; bottom: calc(var(--zen-bar) + 8px); margin: 0 auto; }
+html[data-zen="on"][data-zen-mode="on"] :is(.whitebox1, .sample-header),
+html[data-zen="on"][data-zen-mode="on"] #content > :not(#target):not(.zen-toolbar):not(#errorMessageOuter) { display: none !important; }
+html[data-zen="on"][data-zen-mode="on"] #target .besogo-board {
+  position: fixed;
+  z-index: 100;
+  inset: 0 0 auto;
+  width: 100vw !important;
+  /* Native height fitting caps its own cropped board via inline max-width.
+     Zen mode owns a full-viewport canvas; keep the native cap for Site page. */
+  max-width: none !important;
+  height: calc(100vh - var(--zen-bar)) !important;
+  height: calc(100dvh - var(--zen-bar)) !important;
+  box-shadow: none; /* The site gives its board a shadow; the rim draws ours. */
+}
+html[data-zen="on"][data-zen-mode="on"] #target:not(:has(.besogo-board))::after {
+  position: fixed; inset: 0 0 var(--zen-bar); width: auto; height: auto; border-radius: 0;
+}
+/* A real, visible mat region ending exactly at the wood's top edge gives
+   Safari a top-edge container of its own, instead of one viewport-sized
+   board container whose tint can survive a camera move. Safari owns its blur. */
+html[data-zen="on"][data-zen-mode="on"]:not([data-zen-preparing]) #target .besogo-board[data-zen-fit="on"]::before,
+html[data-zen="on"][data-zen-mode="on"] .zen-mode-handoff::before {
+  content: ''; position: fixed; z-index: 0; inset: 0 0 auto; pointer-events: none;
+  height: clamp(0px, var(--zen-pan-edge-y, 0px), 100dvh); border-radius: 0;
+  --zen-grid-x: var(--zen-pan-grid-x, 0px);
+  --zen-grid-y: var(--zen-pan-grid-y, 0px);
+  background: var(--zen-surround);
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar {
+  position: fixed; z-index: 200; left: 0; right: 0; bottom: 0;
+  height: var(--zen-bar); min-height: 0; width: 100%; max-width: none;
+  margin: 0; padding: 12px; background: var(--zen-paper); border-top: 1px solid var(--zen-line);
+}
+html[data-zen="on"][data-zen-mode="on"]:not([data-zen-ready])::after {
+  content: ''; position: fixed; z-index: 200; left: 0; right: 0; bottom: 0;
+  box-sizing: border-box;
+  height: var(--zen-bar); background: var(--zen-paper); border-top: 1px solid var(--zen-line);
+  pointer-events: none;
+}
+/* The camera fits above the controls, then continues real board/mat beneath
+   the glass. The bar intercepts taps; no playable point is hidden by it. */
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"] #target .besogo-board {
+  height: 100vh !important; height: 100dvh !important;
+}
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"] #target:not(:has(.besogo-board))::after { bottom: 0; }
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"] .zen-toolbar {
+  background: transparent; isolation: isolate;
+  border-top-color: #ffffff75; box-shadow: 0 -1px 12px #24372e08;
+}
+/* Filter only the backdrop plane: filtering the toolbar itself would make
+   its fixed hamburger and heart badge position relative to the bottom bar. */
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"] .zen-toolbar::before,
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"]:not([data-zen-ready])::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: rgb(244 245 239 / var(--zen-bar-tint, .5));
+  -webkit-backdrop-filter: blur(4px) saturate(.95); backdrop-filter: blur(4px) saturate(.95);
+  border-top-color: #ffffff75;
+}
+/* The board shows through the glass, and the bar's text sits on it directly, without a
+   box. A near-black ink keeps WCAG AA at the default 50% tint over every wood and the
+   mat (7.4:1 at worst, over dark wood) and over a black stone (4.7:1); it holds over
+   wood and mat down to a 22% tint. Buttons are opaque already. */
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"] .zen-toolbar .zen-problem { color: #18201c; }
+html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"]:not([data-zen-ready])::after {
+  position: fixed; inset: auto 0 0; z-index: 200;
+}
+@media (prefers-reduced-transparency: reduce) {
+  html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"] .zen-toolbar::before,
+  html[data-zen="on"][data-zen-mode="on"][data-zen-bar="glass"]:not([data-zen-ready])::after {
+    background: var(--zen-paper); -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+html[data-zen="on"][data-zen-mode="on"] #footer { display: none !important; }
+html[data-zen="on"][data-zen-mode="on"] .zen-native-ui #footer { display: block !important; }
+html[data-zen="on"][data-zen-mode="on"] :is(.zen-toolbar > p, .besogo-panels) { display: none !important; }
+html[data-zen="on"][data-zen-mode="on"] .zen-controls { margin: 0; }
+html[data-zen="on"][data-zen-mode="on"] .zen-options summary {
+  position: fixed; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: var(--zen-safe-left);
+  width: 44px; height: 44px; padding: 0; font-size: 0; list-style: none; text-align: center;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-options summary::after { content: '•••'; font: 700 17px/42px system-ui; }
+html[data-zen="on"][data-zen-mode="on"] .zen-options summary::-webkit-details-marker { display: none; }
+html[data-zen="on"][data-zen-mode="on"] .zen-options[open] {
+  position: fixed; left: 8px; right: 8px; bottom: calc(var(--zen-bar) + 8px); width: auto;
+  max-height: calc(100vh - 100px); overflow-y: auto; padding: 12px;
+  border: 1px solid var(--zen-line); border-radius: 12px; background: var(--zen-paper); box-shadow: 0 8px 36px #0003;
+}
+/* The Review slot stays reserved, so the bar cannot move when the site enables
+   it. The narrowest phones need that width for the text. */
+html[data-zen="on"][data-zen-mode="on"] .zen-context {
+  position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  left: calc(var(--zen-safe-left) + 54px); right: calc(var(--zen-safe-right) + 192px); bottom: calc(9px + env(safe-area-inset-bottom, 0px)); height: 54px;
+}
+@media (max-width: 399px) {
+  html[data-zen="on"][data-zen-mode="on"]:not([data-zen-review-available]) .zen-context { right: calc(var(--zen-safe-right) + 150px); }
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-problem {
+  display: flex; gap: 4px; min-width: 0; color: #526255; font: 400 11px/1.3 system-ui;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-set { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+html[data-zen="on"][data-zen-mode="on"] .zen-number { flex-shrink: 0; }
+html[data-zen="on"][data-zen-mode="on"] .zen-live-status {
+  font: 600 13px/1.35 system-ui; overflow: auto;
+}
+html[data-zen="on"][data-zen-mode="on"] .besogo-tsumegoPlayTool > * { display: none !important; }
+html[data-zen="on"][data-zen-mode="on"] .zen-bar-action {
+  position: fixed; z-index: 210; display: inline-flex;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px)); min-height: 44px; height: 44px; width: 68px;
+}
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar .zen-reset { right: calc(var(--zen-safe-right) + 76px); width: 44px; height: 44px; min-width: 44px; padding: 0; font-size: 0; }
+html[data-zen="on"][data-zen-mode="on"] .zen-reset::after { content: '↺'; font-size: 24px; }
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar .zen-next { right: var(--zen-safe-right); background: #285a43; color: white; border-color: #285a43; }
+/* Waiting for the site. The label stays in place, unseen, so the button can't change size. */
+html[data-zen="on"][data-zen-mode="on"] .zen-toolbar .zen-next[aria-busy="true"] { color: transparent; cursor: progress; }
+html[data-zen="on"] .zen-next[aria-busy="true"]::after {
+  content: ''; position: absolute; inset: 0; margin: auto; box-sizing: border-box; width: 18px; height: 18px;
+  border: 2px solid white; border-right-color: transparent; border-radius: 50%; animation: zen-review-spin .7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-zen="on"] .zen-next[aria-busy="true"]::after { animation: none; }
+}
+html[data-zen="on"][data-zen-mode="on"] #errorMessageOuter:not(:has(#errorMessage:empty)) {
+  position: fixed; z-index: 220; left: 12px; right: 12px; bottom: calc(var(--zen-bar) + 8px);
+  padding: 12px; background: #fff1e9; color: #8b3022; border-radius: 8px;
+}
+
+/* The only addition to regular mode is a reversible entry point. All native
+   page styling and controls remain intact outside the scoped Zen mode rules. */
+.zen-toolbar[hidden], .zen-resume[hidden] { display: none !important; }
+.zen-resume {
+  position: fixed; z-index: 220; bottom: max(12px, env(safe-area-inset-bottom));
+  left: max(12px, env(safe-area-inset-left)); min-height: 44px; padding: 8px 14px;
+  font: 600 14px/1.2 system-ui; color: #24372e; background: #f4f5ef;
+  border: 1px solid #d4dcd3; border-radius: 8px; cursor: pointer;
+}
+.zen-resume:focus-visible { outline: 2px solid #285a43; outline-offset: 3px; }
+@media (min-width: 601px) {
+  /* Wide crops can put coordinates anywhere along the top/left edges. Keep
+     navigation in the existing bar instead of covering labels or moving the
+     board to make a separate strip. The phone overlay stays unchanged. */
+  html[data-zen="on"][data-zen-mode="on"] .zen-toolbar .zen-nav-trigger {
+    top: auto; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: var(--zen-safe-left);
+  }
+  html[data-zen="on"][data-zen-mode="on"] .zen-options summary { left: calc(var(--zen-safe-left) + 54px); }
+  html[data-zen="on"][data-zen-mode="on"] .zen-context { left: calc(var(--zen-safe-left) + 108px); }
+  html[data-zen="on"][data-zen-mode="on"] .zen-problem { font-size: 13px; }
+  html[data-zen="on"][data-zen-mode="on"] .zen-live-status { font-size: 16px; }
+  html[data-zen="on"][data-zen-mode="on"] .zen-review-controls {
+    max-width: 900px; margin-inline: auto; justify-content: center;
+  }
+  html[data-zen="on"][data-zen-mode="on"] .zen-review-tree { max-width: 1000px; margin-inline: auto; }
+  html[data-zen="on"][data-zen-mode="on"] .zen-site-sheet { width: min(760px, calc(100vw - 32px)); }
+}
+@media (max-height: 600px) {
+  html[data-zen="on"][data-zen-mode="on"][data-zen-review] { --zen-tree-height: min(120px, 22dvh); }
+  /* Keep a usable piece of the tree beside a long comment; the pane cannot grow per node without moving the board. */
+  html[data-zen="on"][data-zen-mode="on"] .zen-toolbar button.zen-review-comment { -webkit-line-clamp: 2; max-height: 46px; }
+  html[data-zen="on"][data-zen-mode="on"] .zen-toolbar button.zen-review-comment:has(+ .zen-review-conversation:not([hidden])) { -webkit-line-clamp: 1; max-height: 26px; }
+  html[data-zen="on"][data-zen-mode="on"] .zen-site-sheet { max-height: calc(100dvh - 24px); }
+  html[data-zen="on"][data-zen-mode="on"] .zen-problem-sheet { bottom: 12px; }
+}
+/* Keep the turn instruction readable in a narrow Review view. Its expanded
+   navigation row already has room for Exit; the ordinary bar stays compact. */
+@media (max-width: 360px) {
+  html[data-zen="on"][data-zen-mode="on"][data-zen-review] .zen-review {
+    right: var(--zen-safe-right); bottom: calc(var(--zen-base-bar) + 4px); width: 68px;
+  }
+  html[data-zen="on"][data-zen-mode="on"][data-zen-review] .zen-review-controls {
+    right: calc(var(--zen-safe-right) + 76px);
+  }
+  html[data-zen="on"][data-zen-mode="on"][data-zen-review] .zen-context {
+    right: calc(var(--zen-safe-right) + 128px);
+  }
+}
+
+/* Failed geometry recognition leaves the native page usable with an explicit retry. */
+.zen-mode-fallback:not([hidden]) {
+  box-sizing: border-box; position: fixed; z-index: 220;
+  left: max(12px, env(safe-area-inset-left)); bottom: calc(64px + env(safe-area-inset-bottom));
+  max-width: min(340px, calc(100vw - 24px)); margin: 0; padding: 10px 12px;
+  border: 1px solid #d4dcd3; border-radius: 8px; background: #f4f5ef; color: #24372e;
+  font: 14px/1.4 system-ui, sans-serif;
+}
+/* Original native achievement content; only Zen mode changes its presentation. */
+html[data-zen="on"] .zen-achievements {
+  --zen-notice-gap: max(64px, calc(env(safe-area-inset-top) + 56px));
+  position: fixed; z-index: 240; box-sizing: border-box;
+  height: var(--zen-notice-height); display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: var(--zen-notice-gap) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  overflow: auto; overscroll-behavior: contain; pointer-events: none;
+}
+html[data-zen="on"] .zen-achievements[data-compact] { --zen-notice-gap: max(8px, env(safe-area-inset-top)); }
+html[data-zen="on"] .toast[data-zen-achievement] {
+  box-sizing: border-box; position: relative; inset: auto; margin: 0; flex: 0 0 auto;
+  width: min(100%, 420px); max-height: calc(var(--zen-notice-height) - var(--zen-notice-gap) - 8px);
+  overflow: auto; pointer-events: auto;
+  border: 1px solid var(--zen-line); border-radius: 12px; background: #f4f5eff5; color: var(--zen-ink);
+  box-shadow: 0 4px 18px #24372e25; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  font: 14px/1.45 system-ui, sans-serif; overflow-wrap: anywhere; cursor: pointer;
+}
+html[data-zen="on"] [data-zen-achievement] .toast__banner {
+  position: sticky; top: 0; z-index: 1; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between;
+  width: auto; height: auto; min-height: 44px; padding-left: 12px; gap: 8px;
+  background: var(--zen-paper); color: var(--zen-ink); text-align: left; font: 600 13px/1.35 system-ui, sans-serif;
+  border-radius: 0; border-bottom: 1px solid var(--zen-line);
+}
+html[data-zen="on"] [data-zen-achievement] .toast__close { display: none; }
+html[data-zen="on"] [data-zen-achievement] .zen-achievement-dismiss {
+  flex: 0 0 44px; width: 44px; min-height: 44px; margin: 0; padding: 0;
+  border: 0; border-radius: 8px; background: transparent; color: inherit; font: 24px/1 system-ui; cursor: pointer;
+}
+html[data-zen="on"] [data-zen-achievement] .toast__body {
+  box-sizing: border-box; display: block; width: auto; margin: 0; padding: 10px 12px;
+  color: inherit; text-align: left; font: inherit;
+}
+html[data-zen="on"] [data-zen-achievement] .toast__body b { font-weight: 500; }
+html[data-zen="on"] [data-zen-achievement] .toast__body img {
+  position: static; float: left; width: 28px; height: 28px; object-fit: contain; margin: 0 8px 4px 0;
+}
+html[data-zen="on"] [data-zen-achievement] .toast__body a { color: #285a43; display: inline-flex; align-items: center; min-height: 44px; }
+html[data-zen="on"] :is([data-zen-achievement], .zen-achievement-dismiss):focus-visible { outline: 2px solid #285a43; outline-offset: -3px; }
+/* Touches drawn for screen recordings. White with a dark edge, to show on any wood. */
+/* A zero-size anchor at the viewport's top left, its rings drawn outside it at touch
+   coordinates, and no backdrop: a fixed layer covering the screen, or a popover's ::backdrop,
+   made iOS Safari paint its bars solid. */
+.zen-taps::backdrop { display: none; }
+.zen-taps { position: fixed; inset: 0 auto auto 0; width: 0; height: 0; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; overflow: visible; background: none; pointer-events: none; }
+.zen-tap {
+  position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; box-sizing: border-box; border-radius: 50%; pointer-events: none;
+  background: #ffffff66; border: 2px solid #00000080; box-shadow: 0 0 0 2px #ffffffb3;
+  transition: opacity .3s ease-out, transform .3s ease-out;
+}
+.zen-tap-end { opacity: 0; transform: scale(1.4); }
+@media (prefers-reduced-motion: reduce) {
+  .zen-tap { transition: none; }
+  .zen-tap-end { opacity: 1; transform: none; }
+}
+
+/* iOS Safari: document content above and below the viewport, which Safari draws behind
+   its status bar and its toolbar. The page is padded and kept scrolled by the same size,
+   so nothing in the viewport moves. The top strip continues the mat and wood; the bottom
+   one continues the frosted pane under Safari's toolbar. */
+html[data-zen-edges] { padding-top: var(--zen-edge) !important; }
+/* Safari paints a sampled solid colour over an edge that a full-width position: fixed
+   layer touches, and hides the page there. In a pinned page, absolute positioning in a
+   viewport-sized body looks the same and lets the strips show. Small fixed controls stay. */
+html[data-zen-edges] body { position: relative !important; height: 100dvh !important; margin: 0 !important; overflow: hidden !important; }
+html[data-zen-edges] :is(#container, .whitebox2) { position: static !important; }
+html[data-zen-edges][data-zen-mode="on"] #target .besogo-board,
+html[data-zen-edges][data-zen-mode="on"] .zen-toolbar { position: absolute !important; }
+html[data-zen-edges] .zen-mode-handoff { position: absolute !important; margin-top: var(--zen-edge) !important; }
+html[data-zen-edges] .zen-achievements { position: absolute !important; }
+html[data-zen-edges] .zen-bar-copy,
+html[data-zen-edges][data-zen-mode="on"]:not([data-zen-ready])::after { position: absolute !important; margin-bottom: calc(-1 * var(--zen-edge)) !important; }
+html[data-zen-edges][data-zen-mode="on"] #target:not(:has(.besogo-board))::after { position: absolute !important; }
+.zen-edge-bottom, .zen-edge-frost { top: calc(var(--zen-edge) + 100dvh); }
+/* Edge fade only means something where Safari draws behind its bars. */
+html:not([data-zen-edges]) .zen-edge-fade { display: none !important; }
+/* Safari fades whatever lies under its status bar and toolbar toward this colour. Edge
+   fade picks it in bridge.mjs: the mat's colour (Mat) or the bar's glass over what lies
+   under the toolbar (Glass). */
+html[data-zen-edges], html[data-zen-edges] body { background: var(--zen-edge-tint, #b3a98a) !important; }
+/* Until the adapter fills them, the strips show the mat. */
+.zen-edge-scene { background: var(--zen-surround, #c7c5a6); }
+/* These mat layers only steered Safari's sampled top colour. The board's own mat remains. */
+html[data-zen-edges] :is(#target .besogo-board, .zen-mode-handoff)::before { display: none !important; }
+.zen-edges > div { position: absolute; left: 0; right: 0; height: var(--zen-edge); overflow: hidden; pointer-events: none; }
+.zen-edge-top { top: 0; }
+.zen-edge-scene { position: absolute; inset: 0; }
+/* The whole board, past the camera's crop, with the live board's wood, rim and shadow.
+   Everything it shows is outside the viewport, so every edge it shows is a real one. */
+.zen-edge-board { position: absolute; overflow: hidden; border-radius: var(--zen-rim);
+  background: var(--zen-rim-image), var(--zen-surface, #e6c38b);
+  background-position: var(--zen-rim-position), calc(var(--zen-wood-width) * -.004) calc(var(--zen-wood-height) * -.004);
+  background-size: var(--zen-rim-size), calc(var(--zen-wood-width) * 1.008) calc(var(--zen-wood-height) * 1.008);
+  background-repeat: no-repeat; }
+.zen-edge-board > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; background: none; }
+/* The bar's own glass, continued under Safari's toolbar over the real scene. It sits above
+   the Next cover too, below the bar. */
+.zen-edges > .zen-edge-frost { z-index: 150; overflow: visible; background: rgb(244 245 239 / var(--zen-bar-tint, .5));
+  -webkit-backdrop-filter: blur(4px) saturate(.95); backdrop-filter: blur(4px) saturate(.95); }
+html[data-zen-bar="solid"] .zen-edges > .zen-edge-frost { background: var(--zen-paper); -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (prefers-reduced-transparency: reduce) {
+  .zen-edges > .zen-edge-frost { background: var(--zen-paper); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+html[data-zen-bar="glass"] .zen-bar-frost .zen-edge-scene { inset: -8px; filter: blur(4px) saturate(.95); }
+/* The bar's frost as a blurred copy, only while leaving for the next problem: WebKit's
+   cross-document snapshot drops backdrop-filter. The tint stays on top. */
+.zen-bar-frost { display: none; position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+html[data-zen-departing][data-zen-bar="glass"] .zen-bar-frost { display: block; }
+html[data-zen-departing][data-zen-bar="glass"] .zen-toolbar::before { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+
+/* A modal dialog's ::backdrop is fixed and covers the whole viewport, and Safari treats it as a
+   dimming layer at both edges: it paints its bars solid while the sheet is open, and on iOS
+   26.6 they could stay solid after it closed. Here the backdrop only catches taps outside the
+   sheet and stops short of the edges, past the 4 px band Safari samples; the dimming is drawn
+   by absolute layers over the page and the strips, which Safari does not sample. */
+html[data-zen-edges] :is(.zen-site-sheet, .zen-feedback-dialog)::backdrop { inset: 8px 0; background: transparent; }
+html[data-zen-edges]:has(:is(.zen-site-sheet, .zen-feedback-dialog):modal) body::after,
+html[data-zen-edges]:has(:is(.zen-site-sheet, .zen-feedback-dialog):modal) .zen-edges > div::after {
+  content: ''; position: absolute; inset: 0; z-index: 400; background: #17291e66; pointer-events: none;
+}
+/* iPhone with the board under the status bar: no page margin is left above ☰ and the
+   hearts, only the clock and the battery. They sit in a row just beneath the status row
+   (a fixed control above the viewport is clipped, and iOS takes taps there), lined up with
+   its outer edges: ☰'s lines start where the clock starts, and the hearts end where the
+   battery ends. Both follow from the middle of each side of the Dynamic Island (126 pt
+   wide). ☰ keeps its 44 pt target. */
+@media (orientation: portrait) and (max-width: 500px) {
+  html[data-zen="on"][data-zen-mode="on"][data-zen-edges] .zen-toolbar .zen-nav-trigger { top: 0; left: calc((50vw - 63px) / 2 - 30.5px); }
+  html[data-zen="on"][data-zen-mode="on"][data-zen-edges] .zen-hearts:not([hidden]) { top: 0; right: calc((50vw - 63px) / 2 - 37.5px); }
+}

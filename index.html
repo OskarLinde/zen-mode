@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zen Mode · local prototype</title>
+  <link rel="stylesheet" href="harness/preview.css">
+  <script>addEventListener('error', e => { const show = () => { const out = document.querySelector('#checks'); if (out) out.textContent = 'Preview script error: ' + e.message; }; document.readyState === 'loading' ? addEventListener('DOMContentLoaded', show) : show(); });</script>
+  <script src="harness/preview.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="index.html"><span class="mark">●</span> Zen Mode</a><span class="badge">LOCAL PROTOTYPE</span></header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">LESS INTERFACE. MORE GO.</p>
+      <h1>A steadier place to solve.</h1>
+      <p>Room for the board. Controls that stay put.<br>A calmer transition to the next problem.</p>
+    </section>
+    <section class="workbench" aria-label="Interactive prototype">
+      <div class="preview-controls">
+        <div class="sizes" aria-label="Preview width">
+          <button data-width="1280" data-height="800" aria-pressed="false">Desktop</button>
+          <button data-width="820" data-height="1180" aria-pressed="false">iPad portrait</button>
+          <button data-width="1180" data-height="820" aria-pressed="false">iPad landscape</button>
+          <button data-width="540" data-height="720" aria-pressed="false">Narrow window</button>
+          <button data-width="390" aria-pressed="true">Phone · 390</button>
+          <button data-width="320" aria-pressed="false">Small · 320</button>
+        </div>
+        <label>Sample <select id="scenario">
+          <option value="real:0">Easy Life · 93/200 · real SGF</option>
+          <option value="real:1">Tesuji Training · 1/416 · real SGF</option>
+          <option value="real:2">Easy Capture · 100/200 · real SGF</option>
+          <option value="0">Corner capture · 19 × 19</option>
+          <option value="1">Center capture · 9 × 9</option>
+          <option value="2">Tall board · 9 × 13</option>
+          <option value="3">Distant branch & label · 19 × 19</option>
+          <option value="0&training=1">Mistake training · authored flow check</option>
+          <option value="0&framing=1">Enclosed framing · 8 rows × 6 columns</option>
+          <option value="4">Delayed board · 2 seconds</option>
+          <option value="5">Unknown engine · safe fallback</option>
+          <option value="6">Loading error · visible fallback</option>
+        </select></label>
+      </div>
+      <div class="preview-layout">
+        <div class="device-column">
+          <div class="device-caption"><span class="dot"></span> Local UI demo · no progress sync</div>
+          <iframe id="preview" title="Interactive local problem selection" src="harness/real.html?p=0"></iframe>
+          <p class="frame-caption">This is a viewport simulation, not an iPhone device test.</p>
+        </div>
+        <aside>
+          <p class="eyebrow">TRY IT</p>
+          <h2>A familiar rhythm.</h2>
+          <ol>
+            <li>Read and play the sequence.<br><span>White replies automatically. Reset after a failed line.</span></li>
+            <li>Pause after success.<br><span>Nothing advances automatically.</span></li>
+            <li>Click the board again, or Next.<br><span>Three demo problems, randomly rotated and mirrored each load.</span></li>
+          </ol>
+          <div class="note"><strong>Within easier reach.</strong><p>High positions move down with a quiet surface beyond the real board edge. Real corners stay intact, with at least six intersections across. All loaded variations and labels stay in view.</p><p>Open ••• → Outside board to compare Woven, Natural tatami, and Solid. Auto pairs the surround with your board appearance. Small (⅓-grid) margin is the default; choose None to remove the narrow mat border, and Bottom bar → Frosted glass or Solid. The glass reveals the real board or mat underneath.</p><p>Try transitions in the <a href="harness/real.html?p=0">direct puzzle demo</a>: ••• → Board transition → Pan &amp; crossfade: stones sweep away as the camera moves, then it pauses 50ms before building the new position in random, alternating-color order. Site theme, Small margin and Pan &amp; crossfade are the defaults for unset preferences. Existing choices stay saved; Steady, Reduce Motion and unsupported browsers skip the animation.</p><p>••• also has Thumb reach, coordinates, Full board, zoom, and the complete site page.</p></div>
+          <details open><summary>About this local selection</summary><p>Three problems authored for this demo: an edge chase, a double atari and a snapback. Their SGFs are under ••• → Source &amp; details.</p><p>Moves, captures and outcomes run locally. No account, rating or progress is synchronized. Additional authored fixtures exercise layout and error cases.</p></details>
+          <details><summary>What still needs testing</summary><p>The installed extension has real-site Chrome, macOS WebKit and iPad simulator-host checks. The current wider layout still needs Safari-app and physical-device checks; signed-in workflows remain unverified. Full native navigations remain.</p></details>
+          <div class="note"><strong>Fake achievement popups</strong><p>Test only · no award or progress change.</p><button data-preview-achievement="short">Short</button> <button data-preview-achievement="long">Long</button> <button data-preview-achievement="repeated">3 popups</button></div>
+          <button id="run-checks">Run local checks</button>
+          <output id="checks" aria-live="polite">Checks have not run.</output>
+          <p><a href="README.md">Loading steps & limitations ↗</a></p>
+          <p id="phone-share" hidden><a href="phone.html">Show iPhone QR code ↗</a></p>
+        </aside>
+      </div>
+    </section>
+  </main>
+  <footer>Independent local experiment · three selected SGFs · no progress sync or publishing</footer>
+</body>
+</html>

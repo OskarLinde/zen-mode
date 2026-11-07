@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""User-run private-LAN demo launcher. Python standard library only."""
+import argparse
+import base64
+import html
+import hashlib
+import ipaddress
+import subprocess
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import urlsplit
+
+ALLOWLIST = @ALLOWLIST@
+QR_HELPER_SHA256 = @QR_HASH@
+
+
+def load_bundle():
+    """Read only the listed, unchanged demo files. Never serve a filesystem path."""
+    base = Path(__file__).resolve().parent
+    assets = {}
+    for route, (mime, expected) in ALLOWLIST.items():
+        path = base / route.lstrip('/')
+        resolved = path.resolve(strict=True)
+        if not resolved.is_relative_to(base) or path.is_symlink() or not resolved.is_file():
+            raise ValueError('Invalid bundled asset: ' + route)
+        body = resolved.read_bytes()
+        if hashlib.sha256(body).hexdigest() != expected:
+            raise ValueError('Bundle is incomplete or changed: ' + route)
+        assets[route] = (mime, body)
+    return assets
+
+
+def qr_helper():
+    base = Path(__file__).resolve().parent
+    path = base / 'make-qr.js'
+    if path.is_symlink() or path.resolve().parent != base or hashlib.sha256(path.read_bytes()).hexdigest() != QR_HELPER_SHA256:
+        raise ValueError('QR helper is missing or changed. Extract the complete bundle again.')
+    return path
+
+
+def phone_assets(url):
+    # macOS Core Image generates the QR locally. Pass the URL as data, never code.
+    encoded = subprocess.check_output(['/usr/bin/osascript', '-l', 'JavaScript', str(qr_helper()), url],
+                                      text=True, stderr=subprocess.PIPE, timeout=15)
+    png = base64.b64decode(encoded.strip(), validate=True)
+    if not png.startswith(b'\x89PNG\r\n\x1a\n'):
+        raise ValueError('The QR generator did not return a PNG image.')
+    escaped = html.escape(url, quote=True)
+    page = f'''<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zen Mode · Open on iPhone</title>
+<style>
+:root {{ font: 17px/1.5 system-ui, sans-serif; color: #20352b; background: #f3f5ef; }}
+body {{ max-width: 34rem; margin: 5vh auto; padding: 24px; text-align: center; }}
+h1 {{ font-size: 1.7rem; margin-bottom: .4rem; }}
+img {{ display: block; width: min(100%, 344px); height: auto; margin: 24px auto; image-rendering: pixelated; border-radius: 4px; }}
+a {{ color: #235b42; overflow-wrap: anywhere; }}
+.url {{ display: block; padding: 12px; background: white; border-radius: 8px; }}
+small {{ display: block; margin-top: 24px; }}
+</style>
+<h1>Open Zen Mode on iPhone</h1>
+<p>Scan with your iPhone Camera, then tap the link.</p>
+<img src="phone-qr.png" alt="QR code for the puzzle URL shown below" width="344" height="344">
+<a class="url" href="{escaped}">{escaped}</a>
+<p>Use the same Wi-Fi as this Mac.<br>Keep the Mac awake and the launcher running.</p>
+<p><a href="index.html">Open the workbench on this Mac</a></p>
+<small>Local UI demo · Three selected problems · No account or progress sync</small>
+</html>'''
+    return {'/phone.html': ('text/html; charset=utf-8', page.encode()), '/phone-qr.png': ('image/png', png)}
+
+
+def local_address(value):
+    address = ipaddress.IPv4Address(value)
+    networks = ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')
+    if not any(address in ipaddress.IPv4Network(network) for network in networks):
+        raise ValueError('Use a specific private LAN IPv4 address, not 0.0.0.0 or a public address.')
+    return str(address)
+
+
+def default_address():
+    output = subprocess.check_output(['/sbin/route', '-n', 'get', 'default'], text=True, stderr=subprocess.DEVNULL, timeout=3)
+    interface = next(line.split(':', 1)[1].strip() for line in output.splitlines() if line.strip().startswith('interface:'))
+    address = subprocess.check_output(['/usr/sbin/ipconfig', 'getifaddr', interface], text=True, stderr=subprocess.DEVNULL, timeout=3).strip()
+    return local_address(address)
+
+
+def route_for(target):
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc or parsed.fragment:
+        return None
+    path = '/index.html' if parsed.path == '/' else parsed.path
+    return path if path in ALLOWLIST or path in ('/phone.html', '/phone-qr.png') else None
+
+
+class DemoHandler(BaseHTTPRequestHandler):
+    def version_string(self):
+        return 'ZenModeDemo'
+
+    def log_message(self, *_):
+        pass
+
+    def respond(self, status, mime, body, head=False):
+        self.send_response(status)
+        self.send_header('Content-Type', mime)
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Referrer-Policy', 'no-referrer')
+        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'")
+        self.end_headers()
+        if not head:
+            self.wfile.write(body)
+
+    def serve_demo(self, head=False):
+        if self.headers.get_all('Host') != [self.server.allowed_host]:
+            return self.respond(421, 'text/plain; charset=utf-8', b'Use the printed phone URL.\n', head)
+        route = route_for(self.path)
+        if route is None or route not in self.server.assets:
+            return self.respond(404, 'text/plain; charset=utf-8', b'Not found.\n', head)
+        mime, body = self.server.assets[route]
+        self.respond(200, mime, body, head)
+
+    def do_GET(self):
+        self.serve_demo()
+
+    def do_HEAD(self):
+        self.serve_demo(head=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Serve only the bundled local Go UI demo to your iPhone. No installation needed.')
+    parser.add_argument('--bind', help='Specific Mac private LAN IPv4 address; otherwise use the default network interface.')
+    parser.add_argument('--port', type=int, default=8765, help='LAN port (default: 8765).')
+    parser.add_argument('--no-open', action='store_true', help='Print the QR page URL without opening the Mac browser.')
+    parser.add_argument('--check', action='store_true', help='Check bundled file hashes and exit without opening a listener.')
+    args = parser.parse_args()
+    try:
+        assets = load_bundle()
+        qr_helper()
+    except (OSError, ValueError) as error:
+        parser.exit(1, str(error) + '\n')
+    if args.check:
+        print(f'OK: {len(assets)} allowlisted assets, {sum(len(item[1]) for item in assets.values())} bytes. No server started.')
+        return
+    if not 1024 <= args.port <= 65535:
+        parser.error('Choose a port between 1024 and 65535.')
+    try:
+        address = local_address(args.bind) if args.bind else default_address()
+    except (OSError, ValueError, StopIteration, subprocess.SubprocessError):
+        parser.error('Cannot determine the intended LAN address. Use --bind with the Mac Wi-Fi IPv4 address from System Settings → Wi-Fi → Details → TCP/IP.')
+    host = f'{address}:{args.port}'
+    phone_url = f'http://{host}/harness/real.html?p=0'
+    qr_url = f'http://{host}/phone.html'
+    try:
+        assets.update(phone_assets(phone_url))
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        parser.exit(1, f'Could not create the QR code with macOS Core Image: {error}\n')
+    try:
+        server = ThreadingHTTPServer((address, args.port), DemoHandler)
+    except OSError as error:
+        parser.exit(1, f'Could not listen on {address}:{args.port}: {error}. Try another --port or check --bind.\n')
+    server.assets = assets
+    server.allowed_host = f'{address}:{server.server_port}'
+    print('\nLocal UI demo — three selected SGFs, no account/progress sync.')
+    print('Keep this Mac awake and connect the iPhone to the same Wi-Fi/LAN.')
+    print('Scan the QR page opened on this Mac, or open the direct URL in iPhone Safari:\n')
+    print(f'  {phone_url}\n')
+    print(f'QR scan page: {qr_url}')
+    print(f'Optional workbench: http://{server.allowed_host}/index.html')
+    print('If macOS asks, allow Python incoming/local-network connections on your private network.')
+    print('Only the bundled demo files are served. Press Ctrl-C here to stop.\n', flush=True)
+    if not args.no_open:
+        try:
+            subprocess.run(['/usr/bin/open', qr_url], check=True, timeout=5)
+        except (OSError, subprocess.SubprocessError):
+            print('Open the QR scan page URL above in the Mac browser.', flush=True)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print('\nStopped.')
+    finally:
+        server.server_close()
+
+
+if __name__ == '__main__':
+    main()

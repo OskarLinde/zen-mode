@@ -1,0 +1,16 @@
+# Local packages, test kits and archives
+/build/
+/dist/
+/output/
+*-Test-Kit/
+*.zip
+
+# Xcode
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+# Tooling and OS
+__pycache__/
+node_modules/
+.DS_Store

@@ -1,0 +1,39 @@
+body { margin: 0; font: 16px/1.5 system-ui, sans-serif; background: #f4f5ef; color: #293d32; }
+* { box-sizing: border-box; }
+.sample-header { min-height: 58px; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; gap: 10px; border-bottom: 1px solid #dce2d7; font-size: 12px; }
+a { color: #315d45; text-underline-offset: 3px; }
+.sample-header a { text-decoration: none; font-weight: 650; }
+.sample-header span { font-size: 9px; letter-spacing: .08em; color: #697c66; }
+.whitebox2 { padding: 16px; }
+.play-header-table { text-align: center; min-height: 76px; }
+#playTitle { font-weight: 650; }
+#titleDescription { color: #697564; font-size: 14px; }
+#xpDisplayDiv { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+#status2 { color: #819079; }
+#theComment { min-height: 24px; font-size: 13px; color: #426e45; }
+.besogo-board { width: 620px; height: 620px; background: #e6c38b; margin: 30px auto; }
+.besogo-board svg { width: 100%; height: 100%; }
+.besogo-svg-lines { fill: none; stroke: #7c6037; stroke-width: 1; }
+.besogo-bottom-panels { margin: 20px; }
+.besogo-tsumegoPlayTool { display: flex; gap: 10px; }
+button, input, .besogo-tsumegoPlayTool a { font: inherit; min-height: 44px; }
+.besogo-tsumegoPlayTool a, button { padding: 8px 12px; border: 1px solid #cdd5c9; border-radius: 7px; background: #fff; color: #294b36; cursor: pointer; }
+.sample-details { margin: 20px auto; max-width: 580px; font-size: 12px; color: #61715d; }
+summary { cursor: pointer; min-height: 44px; }
+form { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+form label { display: grid; gap: 5px; }
+input { max-width: 140px; padding: 8px; border: 1px solid #b8c6b4; border-radius: 5px; }
+#errorMessage { color: #982e23; }
+.besogo-panels[hidden] { display: none !important; }
+.sample-tree svg { display: block; max-width: none; }
+.sample-tree [role="button"] { cursor: pointer; }
+.sample-tree [role="button"]:focus-visible { outline: 2px solid #b26422; }
+
+/* Test-only native achievement layout contract; the extension supplies Zen mode enhancement. */
+.toast { position:fixed; width:1000px; bottom:1%; left:50%; margin-left:-500px; display:none;
+  z-index:9999; line-height:1.8; border:1px solid #222; border-radius:8px;
+  background:linear-gradient(#fff,#d8d8d8); cursor:pointer; transition:opacity .5s; }
+.toast__banner { background:#343434; color:white; height:31px; text-align:center; font-weight:800; }
+.toast__close { float:right; padding:1px 5px 5px; font-size:12px; }
+.toast__body { display:table; margin:10px; width:100%; text-align:center; font-size:16px; }
+.toast--achievement #hpIcon1 { position:relative; top:15px; width:40px; }

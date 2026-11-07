@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en" data-zen-demo="local-selection" data-zen="on" data-zen-mode="on" data-zen-theme="plain">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Local problem selection · Zen Mode</title>
+  <script src="demo-health.js"></script>
+  <link rel="stylesheet" href="sample.css">
+  <link rel="stylesheet" href="../extension/zen.css">
+  <script src="../extension/transition.js"></script>
+  <script src="../extension/content.js"></script>
+  <script src="../extension/bridge.mjs" type="module"></script>
+  <script src="real.mjs" type="module"></script>
+  <script src="fake-achievements.mjs" type="module"></script>
+</head>
+<body>
+  <header class="sample-header"><a href="../index.html" target="_top">Zen Mode / local selection</a><span>NO PROGRESS SYNC</span></header>
+  <div id="container"><div class="whitebox2"><div id="content">
+    <div class="play-header-table"><div id="health"><span id="health-counter">9 / 10</span></div><div id="playTitle">Loading local problem…</div><div id="titleDescription"></div></div>
+    <div id="xpDisplayDiv"><span id="status" role="status">Ready to play</span><span id="status2">Local only</span></div>
+    <div id="theComment"></div>
+    <div id="target"></div>
+    <div id="errorMessageOuter"><p id="errorMessage" role="alert"></p></div>
+    <details class="sample-details" id="sample-details"><summary>Local sample · source & details</summary>
+      <p>Three problems authored for this local demo. No account, rating, or progress is synchronized with tsumego.com.</p>
+      <p>The demo starts with 9/10 sample hearts. Revealed failures reduce them for this page only; Reset does not restore them. This illustrates the indicator, not the site's daily allowance or locking rules.</p>
+      <p id="source-credit"></p><p><a id="sgf-link" download>SGF</a> · <a href="problems/sources.json">Problem list</a></p>
+      <p id="demo-history" class="problem-nav__item problem-nav__item--V"><span id="currentNavigationButton">Local attempts (solved/failed): </span><span class="problem-nav__ratio">-</span></p>
+      <p>Play the recorded continuation; the opponent responds automatically. An incorrect line stops with a retry message. Reset restores all stones. After success, tap the board or Next when ready.</p>
+      <p>After solving, Review browses the original recorded tree using arrows or tree buttons. Up/Down switches sibling variations. The local demo supports recorded moves only; Exit review returns to your attempt. The extension on tsumego.com uses the site's full free-play engine.</p>
+      <p>Test-only achievement popups · no award or progress change:</p><p><button type="button" data-fake-achievement="short">Short popup</button> <button type="button" data-fake-achievement="long">Long popup</button> <button type="button" data-fake-achievement="repeated">3 popups</button></p>
+      <form id="move-form"><label>Play coordinate <input name="coordinate" autocomplete="off" placeholder="D18"></label><button>Play move</button></form>
+      <p><a href="real.html?p=0">Easy Life</a> · <a href="real.html?p=1">Tesuji</a> · <a href="real.html?p=2">Capture</a></p>
+    </details>
+  </div></div></div>
+</body>
+</html>
