@@ -2,7 +2,9 @@
 
 A browser extension that gives [tsumego.com](https://tsumego.com) a calm, full-screen solving view, made first for phones.
 
-<img src="docs/screenshot.jpg" width="320" alt="Zen Mode on a phone-sized screen: a Go board filling the view with tatami at the sides, the menu top left, hearts top right, and a compact bar with •••, the problem title, Reset and Next">
+
+https://github.com/user-attachments/assets/c9000ae7-1ee2-4af9-a282-eef6c15f5297
+
 
 ## What it does
 
